@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>巡邏簽到站</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F4F6F9;
+    --card:#FFFFFF;
+    --ink:#1B2130;
+    --ink-soft:#6B7280;
+    --idle:#5B6472;
+    --active:#2B6CF6;
+    --ok:#0E9F6E;
+    --ok-soft:#E3F9EE;
+    --warn:#E0432C;
+    --warn-soft:#FDEAE7;
+    --radius:24px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    font-family:"Noto Sans TC","Helvetica Neue",Arial,sans-serif;
+    background:
+      radial-gradient(circle at 20% 0%, #EEF2FA 0%, var(--bg) 45%),
+      var(--bg);
+    color:var(--ink);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+    padding:28px 20px;
+  }
+  .app{ width:100%; max-width:440px; }
+  .eyebrow{
+    font-size:14px; font-weight:700; letter-spacing:.14em;
+    color:var(--ink-soft); text-align:center; margin:0 0 4px;
+  }
+  h1{
+    font-size:26px; font-weight:900; text-align:center;
+    margin:0 0 28px; letter-spacing:.02em;
+  }
+  .status-card{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:40px 24px 32px;
+    box-shadow:0 1px 2px rgba(16,24,40,.04), 0 12px 28px -8px rgba(16,24,40,.10);
+    text-align:center;
+    transition:background .35s ease;
+  }
+  .radar{
+    width:104px; height:104px; margin:0 auto 22px; position:relative;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .radar-core{
+    width:56px; height:56px; border-radius:50%; background:var(--idle);
+    display:flex; align-items:center; justify-content:center;
+    font-size:26px; color:#fff; z-index:2;
+    transition:background .35s ease, transform .25s ease;
+  }
+  .radar-ring{
+    position:absolute; inset:0; border-radius:50%;
+    border:2px solid var(--active); opacity:0;
+  }
+  .status-card.scanning .radar-core{ background:var(--active); }
+  .status-card.scanning .radar-ring{ opacity:1; animation:pulse 1.8s ease-out infinite; }
+  .status-card.scanning .radar-ring.r2{ animation-delay:.6s; }
+  .status-card.scanning .radar-ring.r3{ animation-delay:1.2s; }
+  @keyframes pulse{
+    0%{ transform:scale(.55); opacity:.55; }
+    100%{ transform:scale(1.55); opacity:0; }
+  }
+  .status-card.verifying .radar-core{ background:var(--active); animation:spin 1s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .status-card.success .radar-core{ background:var(--ok); transform:scale(1.05); }
+  .status-card.success{ background:var(--ok-soft); }
+  .status-card.error .radar-core{ background:var(--warn); }
+  .status-card.error{ background:var(--warn-soft); }
+  .status-title{ font-size:22px; font-weight:700; line-height:1.45; margin:0; }
+  .status-sub{ font-size:15px; color:var(--ink-soft); margin-top:8px; line-height:1.6; }
+  #startBtn{
+    display:block; width:100%; margin-top:18px; padding:20px;
+    font-family:inherit; font-size:18px; font-weight:700;
+    background:var(--ink); color:#fff; border:none; border-radius:16px; letter-spacing:.02em;
+  }
+  #startBtn:active{ opacity:.85; }
+  .name-grid{ margin-top:18px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .nameBtn{
+    padding:22px 8px; font-family:inherit; font-size:20px; font-weight:700;
+    color:#fff; background:var(--active); border:none; border-radius:16px;
+    box-shadow:0 6px 14px -6px rgba(43,108,246,.55);
+  }
+  .nameBtn:active{ transform:scale(.97); }
+  .hint{ text-align:center; color:var(--ink-soft); font-size:13px; margin-top:20px; line-height:1.6; }
+  details.config{ margin-top:28px; border-radius:14px; background:rgba(27,33,48,.03); padding:2px 16px; }
+  details.config summary{ padding:12px 0; font-size:13px; color:var(--ink-soft); cursor:pointer; }
+  details.config .config-body{ padding-bottom:14px; font-size:12px; color:var(--ink-soft); word-break:break-all; line-height:1.7; }
+</style>
+</head>
+<body>
+<div class="app">
+  <p class="eyebrow">7-ELEVEN 鑫忠孝門市</p>
+  <h1>📍 巡邏簽到站</h1>
+
+  <div class="status-card" id="statusCard">
+    <div class="radar" id="radar">
+      <div class="radar-ring"></div>
+      <div class="radar-ring r2"></div>
+      <div class="radar-ring r3"></div>
+      <div class="radar-core" id="radarCore">•</div>
+    </div>
+    <p class="status-title" id="statusTitle">請按下方按鈕開始感應</p>
+    <p class="status-sub" id="statusSub"></p>
+    <button id="startBtn" onclick="startScan()">開始感應（開店後按一次即可）</button>
+    <div class="name-grid" id="nameArea"></div>
+  </div>
+
+  <p class="hint">此頁面須保持開啟，感應後不用手動操作網址</p>
+
+  <details class="config">
+    <summary>⚙️ 設定資訊（僅供設定用，同仁不需理會）</summary>
+    <div class="config-body">APP_URL：<span id="showUrl"></span></div>
+  </details>
+</div>
+
+<script>
+// ⚠️⚠️ 第一次使用，請把下面這行換成你自己的 GAS 網頁應用程式網址（結尾 /exec，不用加任何參數）⚠️⚠️
+var APP_URL = "https://script.google.com/macros/s/AKfycbxLC3CdpWF7bCpbcnGNAzsOsqBCG3ENNQcLxzGvwsKCCargslHXBVw3S6XmaH10U5eE/exec";
+
+var STAFF = ["佳霖","政倫","筱淇","宇桓","家凱","代班","店長"]; // 跟 CONFIG.STAFF 保持一致，之後改人記得兩邊都要改
+
+document.getElementById("showUrl").textContent = APP_URL;
+
+var currentCheckpoint = null;
+var currentToken = null;
+
+var els = {
+  card: document.getElementById("statusCard"),
+  core: document.getElementById("radarCore"),
+  title: document.getElementById("statusTitle"),
+  sub: document.getElementById("statusSub"),
+  startBtn: document.getElementById("startBtn"),
+  nameArea: document.getElementById("nameArea")
+};
+
+// state: idle | scanning | verifying | success | error
+function setState(state, title, sub, icon) {
+  els.card.className = "status-card " + state;
+  els.title.innerHTML = title;
+  els.sub.innerHTML = sub || "";
+  els.core.textContent = icon || "";
+}
+
+function startScan() {
+  if (!("NDEFReader" in window)) {
+    setState("error", "這支手機不支援感應功能", "請改用 Android 手機的 Chrome 瀏覽器開啟本頁", "⚠");
+    return;
+  }
+  var reader = new NDEFReader();
+  reader.scan().then(function () {
+    els.startBtn.style.display = "none";
+    setState("scanning", "感應中", "請把手機貼近巡邏點貼紙", "");
+    reader.onreading = function (event) {
+      handleTagRead(event);
+    };
+    reader.onreadingerror = function () {
+      setState("error", "讀取失敗", "請重新感應一次", "⚠");
+    };
+  }).catch(function (err) {
+    setState("error", "無法啟動感應", String(err) + "，請確認手機NFC已開啟並允許授權", "⚠");
+  });
+}
+
+function handleTagRead(event) {
+  var pointCode = null;
+  for (var i = 0; i < event.message.records.length; i++) {
+    var record = event.message.records[i];
+    if (record.recordType === "text") {
+      var decoder = new TextDecoder(record.encoding || "utf-8");
+      pointCode = decoder.decode(record.data).trim();
+      break;
+    }
+  }
+  var serial = event.serialNumber || "";
+  if (!pointCode) {
+    setState("error", "這張貼紙沒有寫入有效內容", "", "⚠");
+    backToScanningLater();
+    return;
+  }
+  setState("verifying", "驗證中", "", "");
+  var url = APP_URL + "?action=authorizeTag&point=" + encodeURIComponent(pointCode) + "&serial=" + encodeURIComponent(serial);
+  fetch(url).then(function (res) { return res.json(); }).then(function (data) {
+    if (!data.success) {
+      setState("error", "驗證未通過", data.message.replace(/\n/g, "<br>"), "⚠");
+      backToScanningLater(5000);
+      return;
+    }
+    currentToken = data.token;
+    currentCheckpoint = { code: pointCode, name: data.checkpointName };
+    showNameButtons(currentCheckpoint);
+  }).catch(function (err) {
+    setState("error", "連線失敗", "請確認網路，或截圖回報此訊息：" + err, "⚠");
+    backToScanningLater(5000);
+  });
+}
+
+function showNameButtons(checkpoint) {
+  setState("scanning", "📍 " + checkpoint.name, "請點選你的姓名", "");
+  var html = "";
+  for (var i = 0; i < STAFF.length; i++) {
+    html += "<button class=\"nameBtn\" onclick=\"submitCheckIn('" + STAFF[i] + "')\">" + STAFF[i] + "</button>";
+  }
+  els.nameArea.innerHTML = html;
+}
+
+function submitCheckIn(staffName) {
+  els.nameArea.innerHTML = "";
+  setState("verifying", "送出中...", "", "");
+  var url = APP_URL + "?action=checkin&token=" + encodeURIComponent(currentToken) + "&name=" + encodeURIComponent(staffName);
+  fetch(url).then(function (res) { return res.json(); }).then(function (data) {
+    if (data.success) {
+      setState("success", currentCheckpoint.name + "　" + data.time, "簽到人：" + staffName, "✓");
+    } else {
+      setState("error", "簽到失敗", data.message, "⚠");
+    }
+    currentToken = null;
+    backToScanningLater(2500);
+  }).catch(function (err) {
+    setState("error", "網路錯誤", "請重新感應一次：" + err, "⚠");
+    backToScanningLater(4000);
+  });
+}
+
+function backToScanningLater(delay) {
+  setTimeout(function () {
+    setState("scanning", "感應中", "請把手機貼近巡邏點貼紙", "");
+  }, delay || 2000);
+}
+</script>
+</body>
+</html>
