@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>巡邏簽到站</title>
+<style>
+body{font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;margin:0;padding:24px;background:#f0f2f5;text-align:center;}
+#status{font-size:24px;color:#333;margin:24px 0;min-height:60px;}
+#startBtn{display:block;width:100%;padding:28px;font-size:28px;font-weight:bold;background:#06C755;color:#fff;border:none;border-radius:16px;}
+.nameBtn{display:block;width:100%;margin:12px 0;padding:24px;background:#06C755;color:#fff;border:none;border-radius:14px;font-size:28px;font-weight:bold;box-shadow:0 2px 6px rgba(0,0,0,0.15);}
+.hint{color:#888;font-size:16px;margin-top:16px;}
+.big-ok{font-size:64px;}
+#configBox{margin-top:32px;padding:16px;border:1px dashed #ccc;border-radius:10px;text-align:left;font-size:14px;color:#999;}
+</style>
+</head>
+<body>
+<h2>📍 巡邏簽到站</h2>
+<div id="status">請按下方按鈕開始感應</div>
+<button id="startBtn" onclick="startScan()">▶️ 開始感應（開店後按一次即可）</button>
+<div id="nameArea"></div>
+<p class="hint">此頁面須保持開啟，感應後不用手動操作網址</p>
+
+<div id="configBox">
+⚙️ 設定區（第一次使用請填好下面這行，再儲存檔案）<br>
+APP_URL 目前指向：<code id="showUrl"></code>
+</div>
+
+<script>
+// ⚠️⚠️ 第一次使用，請把下面這行換成你自己的 GAS 網頁應用程式網址（結尾 /exec，不用加任何參數）⚠️⚠️
+var APP_URL = "https://script.google.com/macros/s/AKfycbxLC3CdpWF7bCpbcnGNAzsOsqBCG3ENNQcLxzGvwsKCCargslHXBVw3S6XmaH10U5eE/exec";
+
+var STAFF = ["佳霖","政倫","筱淇","宇桓","家凱","代班","店長"]; // 跟 CONFIG.STAFF 保持一致，之後改人記得兩邊都要改
+
+document.getElementById("showUrl").textContent = APP_URL;
+
+var currentCheckpoint = null;
+var currentToken = null;
+
+function setStatus(text) { document.getElementById("status").innerHTML = text; }
+
+function startScan() {
+  if (!("NDEFReader" in window)) {
+    setStatus("⚠️ 這支手機/瀏覽器不支援感應功能，請改用 Android 手機的 Chrome 瀏覽器開啟本頁");
+    return;
+  }
+  var reader = new NDEFReader();
+  reader.scan().then(function () {
+    document.getElementById("startBtn").style.display = "none";
+    setStatus("📡 感應中，請把手機貼近巡邏點貼紙");
+    reader.onreading = function (event) {
+      handleTagRead(event);
+    };
+    reader.onreadingerror = function () {
+      setStatus("⚠️ 讀取失敗，請重新感應一次");
+    };
+  }).catch(function (err) {
+    setStatus("⚠️ 無法啟動感應：" + err + "，請確認手機NFC已開啟並允許授權");
+  });
+}
+
+function handleTagRead(event) {
+  var pointCode = null;
+  for (var i = 0; i < event.message.records.length; i++) {
+    var record = event.message.records[i];
+    if (record.recordType === "text") {
+      var decoder = new TextDecoder(record.encoding || "utf-8");
+      pointCode = decoder.decode(record.data).trim();
+      break;
+    }
+  }
+  var serial = event.serialNumber || "";
+  if (!pointCode) {
+    setStatus("⚠️ 這張貼紙沒有寫入有效的文字內容");
+    return;
+  }
+  setStatus("🔍 驗證中...");
+  var url = APP_URL + "?action=authorizeTag&point=" + encodeURIComponent(pointCode) + "&serial=" + encodeURIComponent(serial);
+  fetch(url).then(function (res) { return res.json(); }).then(function (data) {
+    if (!data.success) {
+      setStatus("⚠️ " + data.message.replace(/\n/g, "<br>"));
+      setTimeout(function () { setStatus("📡 感應中，請把手機貼近巡邏點貼紙"); }, 5000);
+      return;
+    }
+    currentToken = data.token;
+    currentCheckpoint = { code: pointCode, name: data.checkpointName };
+    showNameButtons(currentCheckpoint);
+  }).catch(function (err) {
+    setStatus("⚠️ 連線失敗，請確認網路，或這是CORS問題（把錯誤訊息截圖回報）：" + err);
+  });
+}
+
+function showNameButtons(checkpoint) {
+  setStatus("📍 " + checkpoint.name + "<br><span style=\"font-size:18px;color:#666;\">請點選你的姓名</span>");
+  var area = document.getElementById("nameArea");
+  var html = "";
+  for (var i = 0; i < STAFF.length; i++) {
+    html += "<button class=\"nameBtn\" onclick=\"submitCheckIn('" + STAFF[i] + "')\">" + STAFF[i] + "</button>";
+  }
+  area.innerHTML = html;
+}
+
+function submitCheckIn(staffName) {
+  document.getElementById("nameArea").innerHTML = "";
+  setStatus("⏳ 送出中...");
+  var url = APP_URL + "?action=checkin&token=" + encodeURIComponent(currentToken) + "&name=" + encodeURIComponent(staffName);
+  fetch(url).then(function (res) { return res.json(); }).then(function (data) {
+    if (data.success) {
+      setStatus("<div class=\"big-ok\">✅</div>" + currentCheckpoint.name + "　" + data.time + "<br>簽到人：" + staffName);
+    } else {
+      setStatus("⚠️ 簽到失敗：" + data.message);
+    }
+    currentToken = null;
+    setTimeout(function () { setStatus("📡 感應中，請把手機貼近巡邏點貼紙"); }, 2500);
+  }).catch(function (err) {
+    setStatus("⚠️ 網路錯誤，請重新感應一次：" + err);
+  });
+}
+</script>
+</body>
+</html>
